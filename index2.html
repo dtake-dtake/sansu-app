@@ -204,8 +204,8 @@
   <script>
     /* ===== ここだけ変えれば読み込む JSON を増やせる ===== */
     const JSON_FILES = [
-      'grade2/kuku_jun/kuku_jun.json',
-      'grade2/kuku_bara/kuku_bara.json',
+      'grade2/10_11_kakezan_1_2/kuku_jun.json',
+      'grade2/10_11_kakezan_1_2/kuku_bara/kuku_bara.json', // 修正されたパス
       'grade1/addition_drills.json',
       // 新しいドリルJSONファイルを追加する場合の例
       // 'grade3/division_drills.json',
@@ -241,6 +241,7 @@
     const dailyKeyOf = ns => ns + 'dailyClear-' + new Date().toISOString().slice(0,10); // YYYY-MM-DD
     const monthKeyOf = ns => ns + 'monthlyClear-' + new Date().toISOString().slice(0,7); // YYYY-MM
     const totalKeyOf = ns => ns + 'clearCount'; // 合計は既存のまま
+    const overallStatusKeyOf = ns => ns + 'overallStatus'; // ★追加: ドリル全体のステータスのキー
 
     /* ===== データ組み立て ===== */
     function buildListFromDrills(drills){
@@ -252,6 +253,9 @@
         const monthlyClears = ls.getItem(monthKeyOf(d.ns)) || '0';
         const totalClears = ls.getItem(totalKeyOf(d.ns)) || '0';
         
+        // ★変更: ドリル全体のステータスを取得
+        const overallStatus = ls.getItem(overallStatusKeyOf(d.ns)) || '―'; 
+
         let status='―';
         let fullDt='―';
         let displayDt='―';
@@ -259,7 +263,7 @@
         try{
           const hist = JSON.parse(ls.getItem(d.ns+'history')||'[]');
           if(hist.length){
-            status = hist[0].status || status;
+            // status = hist[0].status || status; // 履歴のstatusは使用しない
             fullDt = hist[0].datetime || fullDt;
             if (fullDt !== '―') {
               displayDt = fullDt.split('T')[0];
@@ -268,11 +272,11 @@
         }catch{}
         return {
                 grade: d.grade,
-                unit: d.unit ?? '',
+                unit: d.unit ?? '', // unit が null/undefined の場合に対応
                 unitOrder: d.unitOrder, // unitOrder プロパティを追加
                 name: d.name,
                 file: d.file,
-                status,
+                status: overallStatus, // ★変更: テーブルのstatus列はoverallStatusを使用
                 fullDt: fullDt,
                 displayDt: displayDt,
                 hs,
@@ -350,7 +354,12 @@
           case 'totalClears': // totalClearsを追加
             cmp=(+a[sort.key]||0)-(+b[sort.key]||0);
             break;
-          case 'status' : cmp=statusOrder[a.status]-statusOrder[b.status];break;
+          case 'status' : // ★変更: ステータスソートを文字の星に対応させる
+             // 星の数を数値に変換して比較
+             const starsA = (a.status === '○') ? 0.5 : (a.status === '―') ? 0 : a.status.length;
+             const starsB = (b.status === '○') ? 0.5 : (b.status === '―') ? 0 : b.status.length;
+             cmp = starsA - starsB;
+             break;
           case 'dt'     :
             // 日付文字列を比較可能にする (ISO 8601形式を前提)
             const dtA = a.fullDt === '―' ? '' : a.fullDt;
@@ -378,7 +387,7 @@
       let lastUnit = null;
 
       sortedData.forEach(it=>{
-        const info=statusStarsMap[it.status]??{stars:it.status,cls:''};
+        // const info=statusStarsMap[it.status]??{stars:it.status,cls:''}; // 変更
         const tr=document.createElement('tr');
 
         // 学年と単元の重複表示を避ける
@@ -389,10 +398,12 @@
           <td>${displayGrade}</td>
           <td>${displayUnit}</td>
           <td><a href="${it.file}" target="_blank">${it.name}</a></td>
-          <td><span class="status-stars ${info.cls}"></span></td>
-          <td>${it.displayDt}</td>
+          <td>${it.status}</td> <td>${it.displayDt}</td>
           <td>${it.hs}</td>
-          <td>${it.dailyClears}</td>   <td>${it.monthlyClears}</td> <td>${it.totalClears}</td>   `;
+          <td>${it.dailyClears}</td>   
+          <td>${it.monthlyClears}</td> 
+          <td>${it.totalClears}</td>   
+          `;
         tbody.appendChild(tr);
 
         lastGrade = it.grade;
@@ -411,8 +422,8 @@
             // 新しいソートキーが選択されたら、デフォルトは降順にする (よく使われるのは降順のため)
             // ただし、学年や単元、日付、クリア数などは昇順が自然な場合もあるため調整
             if (k === 'grade' || k === 'unit' || k === 'dt' || 
-                k === 'dailyClears' || k === 'monthlyClears' || k === 'totalClears' || k === 'hs') {
-                sort.dir = 'asc'; // これらの項目は昇順が自然
+                k === 'dailyClears' || k === 'monthlyClears' || k === 'totalClears' || k === 'hs' || k === 'status') { // statusも昇順が自然
+                sort.dir = 'asc'; 
             } else {
                 sort.dir = 'desc';
             }
